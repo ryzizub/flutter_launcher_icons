@@ -21,7 +21,7 @@ const String helpFlag = 'help';
 const String verboseFlag = 'verbose';
 const String prefixOption = 'prefix';
 const String defaultConfigFile = 'flutter_launcher_icons.yaml';
-const String flavorConfigFilePattern = r'^flutter_launcher_icons-(.*).yaml$';
+const String flavorConfigFilePattern = r'^flutter_launcher_icons(.*).yaml$';
 
 List<String> getFlavors() {
   final List<String> flavors = [];
@@ -74,54 +74,44 @@ Future<void> createIconsFromArguments(List<String> arguments) async {
 
   final String prefixPath = argResults[prefixOption];
 
-  // Create icons
-  if (!hasFlavors) {
-    // Load configs from given file(defaults to ./flutter_launcher_icons.yaml) or from ./pubspec.yaml
+  try {
+    for (String flavor in flavors) {
+      final clearFlavor = flavor.isEmpty ? null : flavor.replaceFirst('-', '');
 
-    final flutterLauncherIconsConfigs =
-        loadConfigFileFromArgResults(argResults);
-    if (flutterLauncherIconsConfigs == null) {
-      throw NoConfigFoundException(
-        'No configuration found in $defaultConfigFile or in ${constants.pubspecFilePath}. '
-        'In case file exists in different directory use --file option',
-      );
-    }
-    try {
+      if (clearFlavor != null) {
+        print('\nFlavor: $clearFlavor');
+      }
+
+      final flutterLauncherIconsConfigs = clearFlavor == null
+          // Load configs from given file(defaults to ./flutter_launcher_icons.yaml) or from ./pubspec.yaml
+          ? loadConfigFileFromArgResults(argResults)
+          : Config.loadConfigFromFlavor(clearFlavor, prefixPath);
+      if (flutterLauncherIconsConfigs == null) {
+        if (clearFlavor == null) {
+          throw NoConfigFoundException(
+            'No configuration found in $defaultConfigFile or in ${constants.pubspecFilePath}. '
+            'In case file exists in different directory use --file option',
+          );
+        } else {
+          throw NoConfigFoundException(
+            'No configuration found for $clearFlavor flavor.',
+          );
+        }
+      }
       await createIconsFromConfig(
         flutterLauncherIconsConfigs,
         logger,
         prefixPath,
+        clearFlavor,
       );
-      print('\n✓ Successfully generated launcher icons');
-    } catch (e) {
-      stderr.writeln('\n✕ Could not generate launcher icons');
-      stderr.writeln(e);
-      exit(2);
     }
-  } else {
-    try {
-      for (String flavor in flavors) {
-        print('\nFlavor: $flavor');
-        final flutterLauncherIconsConfigs =
-            Config.loadConfigFromFlavor(flavor, prefixPath);
-        if (flutterLauncherIconsConfigs == null) {
-          throw NoConfigFoundException(
-            'No configuration found for $flavor flavor.',
-          );
-        }
-        await createIconsFromConfig(
-          flutterLauncherIconsConfigs,
-          logger,
-          prefixPath,
-          flavor,
-        );
-      }
-      print('\n✓ Successfully generated launcher icons for flavors');
-    } catch (e) {
-      stderr.writeln('\n✕ Could not generate launcher icons for flavors');
-      stderr.writeln(e);
-      exit(2);
-    }
+    print(
+      '\n✓ Successfully generated launcher icons ${flavors.length > 1 ? 'for flavors' : ''}',
+    );
+  } catch (e) {
+    stderr.writeln('\n✕ Could not generate launcher icons for flavors');
+    stderr.writeln(e);
+    exit(2);
   }
 }
 
